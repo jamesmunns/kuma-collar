@@ -75,6 +75,8 @@ fn main() -> ! {
 
         let mut keys = [0u32; 8];
 
+        let mut cum_samples: usize = 0;
+
         for idx in 0..8 {
             let mut key: u32 = 0xACACACAC;
             let mut last: u16 = 1000;
@@ -85,8 +87,11 @@ fn main() -> ! {
 
             rprintln!("Gathering entropy");
 
+            // TODO: Count samples a
+
             while ops < 1000 {
                 let sample = adc.convert(&hal::adc::Temperature, config::SampleTime::Cycles_480);
+                cum_samples = cum_samples.checked_add(1).unwrap();
 
                 if sample == last {
                     run += 1;
@@ -116,7 +121,7 @@ fn main() -> ! {
             keys[idx] = key;
             rprintln!("Seed: 0x{:08X}", key);
             rprintln!("entropy: {}", (last_key ^ key).count_ones());
-
+            rprintln!("cum samples: {}", cum_samples);
             last_key = key;
         }
 

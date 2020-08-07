@@ -34,6 +34,125 @@ pub fn run_all(
     // poc_pulse(smartled, delay, rng);
     rprintln!("smooth_pulse");
     smooth_pulse(smartled, delay, rng);
+    // WIP
+    // rprintln!("planets");
+    // planets(smartled, delay, rng);
+}
+
+pub fn planets(
+    smartled: &mut SmartLed,
+    delay: &mut Delay,
+    rng: &mut ChaCha8Rng,
+) {
+
+    #[derive(Debug)]
+    struct Pos {
+        x: f32,
+        y: f32,
+    }
+
+    #[derive(Debug)]
+    struct Velocity {
+        spd_x: f32,
+        spd_y: f32,
+    }
+
+    #[derive(Debug)]
+    struct Planet {
+        pos: Pos,
+        vel: Velocity,
+        color: RGB<u16>,
+    }
+
+    let mut planets = [
+        Planet {
+            pos: Pos {
+                x: rng.gen_range(0.0, 30.0),
+                y: rng.gen_range(-1.0, 1.0),
+            },
+            vel: Velocity {
+                spd_x: rng.gen_range(-1.0 / 60.0, 1.0 / 60.0),
+                spd_y: rng.gen_range(-1.0 / 60.0, 1.0 / 60.0),
+            },
+            color: eight_to_12(smart_leds::colors::RED)
+        }
+    ];
+    let planets_len_f = planets.len() as f32;
+
+    for _ in 0..(60 * 30) {
+        let mut leds: [RGB<u16>; 30] = [RGB::default(); 30];
+
+        for p in planets.iter_mut() {
+            p.pos.x += p.vel.spd_x;
+            p.pos.y += p.vel.spd_y;
+
+            if p.pos.x < 0.0 {
+                p.pos.x = libm::fabsf(p.pos.x);
+                p.vel.spd_x *= -1.0;
+            }
+
+            if p.pos.x > 30.0 {
+                p.pos.x -= (p.pos.x - 30.0) * 2.0;
+                p.vel.spd_x *= -1.0;
+            }
+
+            if p.pos.y < -1.0 {
+                p.pos.y += (p.pos.y + 1.0) * -2.0;
+            }
+
+            if p.pos.y > 1.0 {
+                p.pos.y -= (p.pos.y - 1.0) * 2.0;
+            }
+
+
+            for (x, led) in leds.iter_mut().enumerate() {
+                let x_pos = x as f32;
+
+                let d_x = p.pos.x - x_pos;
+                let d_y = p.pos.y;
+
+                let hyp = libm::sqrtf((d_x * d_x) + (d_y * d_y));
+
+                let scale = (1.0 / libm::powf(2.0, hyp)) / planets_len_f;
+                led.r += (scale * (p.color.r as f32)) as u16;
+                led.g += (scale * (p.color.g as f32)) as u16;
+                led.b += (scale * (p.color.b as f32)) as u16;
+                led.r = led.r.min(0x0F_FF);
+                led.g = led.g.min(0x0F_FF);
+                led.b = led.b.min(0x0F_FF);
+            }
+
+            rprintln!("planet: {:2.03?}", p);
+        }
+
+        rprintln!("leds: {:?}", leds);
+
+        delay.delay_ms(500u32);
+
+        write_oversample(smartled, leds.iter().cloned().map(|rgb| {
+            RGB {
+                r: linear_interp_gamma(rgb.r),
+                g: linear_interp_gamma(rgb.g),
+                b: linear_interp_gamma(rgb.b),
+            }
+        })).ok();
+
+
+        // TODO:
+        // * array of zero init RGBs
+        // * Iterate through LEDs
+        // * Calc distance, scale light exponentially
+        // * Write sums to output, delay
+    }
+
+}
+
+fn eight_to_12(inp: RGB<u8>) -> RGB<u16> {
+    RGB {
+        r: (inp.r as u16) << 4,
+        g: (inp.g as u16) << 4,
+        b: (inp.b as u16) << 4,
+    }
 }
 
 pub fn smooth_pulse(
